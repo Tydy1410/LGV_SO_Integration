@@ -1,0 +1,4 @@
+@EndUserText.label: 'Service Binding SO Log'
+define service ZSD_SO_LOG {
+  expose ZSD_I_SO_LOG as SO_LOG;
+}
