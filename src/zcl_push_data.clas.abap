@@ -124,11 +124,13 @@ CLASS zcl_push_data DEFINITION
           io_client       TYPE REF TO if_web_http_client
         RETURNING
           VALUE(rv_token) TYPE string,
+
       get_iso_unit
         IMPORTING
           iv_sap_unit   TYPE string
         RETURNING
           VALUE(rv_iso) TYPE string,
+
       build_deep_payload
         IMPORTING
           is_so_header   TYPE ty_so_header
@@ -137,7 +139,14 @@ CLASS zcl_push_data DEFINITION
           it_so_pricing  TYPE tt_so_pricing
           it_so_text     TYPE tt_so_note
         RETURNING
-          VALUE(rv_json) TYPE string.
+          VALUE(rv_json) TYPE string,
+
+      write_log
+        IMPORTING
+          is_so_header TYPE ty_so_header
+          iv_sap_so_id TYPE string
+          iv_status    TYPE i
+          iv_message   TYPE string.
 
 ENDCLASS.
 
@@ -178,12 +187,12 @@ CLASS zcl_push_data IMPLEMENTATION.
           ev_status  = lo_resp->get_status( )-code.
           ev_message = extract_error_message( lo_resp->get_text( ) ).
           lo_http_client->close( ).
-          RETURN.
+        ELSE.
+          ev_status      = lo_resp->get_status( )-code.
+          ev_sales_order = extract_sales_order( lo_resp->get_text( ) ).
+          ev_message     = |Sales Order { ev_sales_order } created successfully|.
+          lo_http_client->close( ).
         ENDIF.
-
-        ev_status      = lo_resp->get_status( )-code.
-        ev_sales_order = extract_sales_order( lo_resp->get_text( ) ).
-        lo_http_client->close( ).
 
       CATCH cx_web_http_client_error INTO DATA(lx_http).
         ev_status  = 503.
@@ -193,6 +202,53 @@ CLASS zcl_push_data IMPLEMENTATION.
         ev_status  = 500.
         ev_message = |Unexpected error: { lx_root->get_text( ) }|.
     ENDTRY.
+
+    write_log(
+      is_so_header = is_so_header
+      iv_sap_so_id = ev_sales_order
+      iv_status    = ev_status
+      iv_message   = ev_message ).
+
+  ENDMETHOD.
+
+
+  METHOD write_log.
+
+    DATA ls_log TYPE ztb_so_log.
+
+    TRY.
+        ls_log-log_uuid = cl_system_uuid=>create_uuid_x16_static( ).
+      CATCH cx_uuid_error.
+        RETURN.
+    ENDTRY.
+
+    ls_log-shopify_so_id = is_so_header-purchase_order_by_customer.
+    ls_log-sap_so_id     = iv_sap_so_id.
+    ls_log-status        = iv_status.
+    ls_log-message       = iv_message.
+
+    GET TIME STAMP FIELD DATA(lv_tsl).
+    ls_log-created_at      = lv_tsl.
+    ls_log-created_by      = sy-uname.
+    ls_log-created_on      = cl_abap_context_info=>get_system_date( ).
+    ls_log-last_changed_at = lv_tsl.
+    ls_log-last_changed_by = sy-uname.
+    ls_log-last_changed_on = ls_log-created_on.
+
+    TRY.
+        ls_log-created_by_desc = cl_abap_context_info=>get_user_formatted_name( ).
+      CATCH cx_abap_context_info_error.
+        ls_log-created_by_desc = sy-uname.
+    ENDTRY.
+
+    INSERT ztb_so_log FROM @ls_log.
+
+    IF sy-subrc = 0.
+      COMMIT WORK.
+    ELSE.
+      ROLLBACK WORK.
+    ENDIF.
+
   ENDMETHOD.
 
 
@@ -328,7 +384,6 @@ CLASS zcl_push_data IMPLEMENTATION.
   ENDMETHOD.
 
 
-
   METHOD extract_error_message.
 
     TYPES: BEGIN OF ty_detail,
@@ -376,6 +431,7 @@ CLASS zcl_push_data IMPLEMENTATION.
 
   ENDMETHOD.
 
+
   METHOD get_iso_unit.
 
     IF iv_sap_unit IS INITIAL.
@@ -404,6 +460,7 @@ CLASS zcl_push_data IMPLEMENTATION.
                     iso_unit = rv_iso ) INTO TABLE mt_unit_cache.
 
   ENDMETHOD.
+
 
   METHOD extract_sales_order.
 

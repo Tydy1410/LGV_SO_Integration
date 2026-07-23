@@ -128,7 +128,9 @@ CLASS zcl_mapping_shopify_to_sap DEFINITION
           et_so_partners  TYPE tt_sap_partners
           et_so_pricing   TYPE tt_sap_pricing
           et_so_text      TYPE tt_sap_text
-          et_tax_recon    TYPE tt_tax_reconciliation.
+          et_tax_recon    TYPE tt_tax_reconciliation
+          ev_status       TYPE i
+          ev_message      TYPE string.
 
   PRIVATE SECTION.
 
@@ -172,12 +174,103 @@ CLASS zcl_mapping_shopify_to_sap DEFINITION
         IMPORTING
           is_shopify_order TYPE ts_shopify_order
         RETURNING
-          VALUE(rv_bp)     TYPE string.
+          VALUE(rv_bp)     TYPE string,
+
+      write_log
+        IMPORTING
+          iv_shopify_so_id TYPE string
+          iv_status        TYPE i
+          iv_message       TYPE string.
 
 ENDCLASS.
 
 
 CLASS zcl_mapping_shopify_to_sap IMPLEMENTATION.
+
+
+  METHOD map_full_order.
+
+    CLEAR: ev_status, ev_message.
+
+    IF iv_shopify_json IS INITIAL.
+      ev_status  = 400.
+      ev_message = 'Request body is empty'.
+      write_log( iv_shopify_so_id = space
+                 iv_status        = ev_status
+                 iv_message       = ev_message ).
+      RETURN.
+    ENDIF.
+
+    DATA ls_shopify_order TYPE ts_shopify_order.
+
+    TRY.
+        /ui2/cl_json=>deserialize(
+          EXPORTING json = iv_shopify_json
+          CHANGING  data = ls_shopify_order
+        ).
+
+        es_so_header   = map_so_header(   ls_shopify_order ).
+        et_so_items    = map_so_items(    ls_shopify_order ).
+        et_so_partners = map_so_partners( ls_shopify_order ).
+        et_so_pricing  = map_so_pricing(  ls_shopify_order ).
+        et_so_text     = map_so_text(     ls_shopify_order ).
+        et_tax_recon   = get_tax_reconciliation( ls_shopify_order ).
+
+        ev_status = 0.
+
+      CATCH cx_root INTO DATA(lx_map).
+        ev_status  = 500.
+        ev_message = |Mapping error: { lx_map->get_text( ) }|.
+
+        write_log(
+          iv_shopify_so_id = COND #( WHEN ls_shopify_order-order_number IS NOT INITIAL
+                                     THEN |{ ls_shopify_order-order_number }|
+                                     ELSE space )
+          iv_status  = ev_status
+          iv_message = ev_message ).
+    ENDTRY.
+
+  ENDMETHOD.
+
+
+  METHOD write_log.
+
+    DATA ls_log TYPE ztb_so_log.
+
+    TRY.
+        ls_log-log_uuid = cl_system_uuid=>create_uuid_x16_static( ).
+      CATCH cx_uuid_error.
+        RETURN.
+    ENDTRY.
+
+    ls_log-shopify_so_id = iv_shopify_so_id.
+    ls_log-sap_so_id     = space.
+    ls_log-status        = iv_status.
+    ls_log-message       = iv_message.
+
+    GET TIME STAMP FIELD DATA(lv_tsl).
+    ls_log-created_at      = lv_tsl.
+    ls_log-created_by      = sy-uname.
+    ls_log-created_on      = cl_abap_context_info=>get_system_date( ).
+    ls_log-last_changed_at = lv_tsl.
+    ls_log-last_changed_by = sy-uname.
+    ls_log-last_changed_on = ls_log-created_on.
+
+    TRY.
+        ls_log-created_by_desc = cl_abap_context_info=>get_user_formatted_name( ).
+      CATCH cx_abap_context_info_error.
+        ls_log-created_by_desc = sy-uname.
+    ENDTRY.
+
+    INSERT ztb_so_log FROM @ls_log.
+
+    IF sy-subrc = 0.
+      COMMIT WORK.
+    ELSE.
+      ROLLBACK WORK.
+    ENDIF.
+
+  ENDMETHOD.
 
 
   METHOD map_so_header.
@@ -211,7 +304,6 @@ CLASS zcl_mapping_shopify_to_sap IMPLEMENTATION.
 
   METHOD determine_sold_to_party.
     IF is_shopify_order-customer-id IS NOT INITIAL.
-      " TODO: thay bằng logic tra cứu B2B customer thật khi có rule chính thức.
       rv_bp = is_shopify_order-customer-id.
     ELSE.
       rv_bp = gc_one_time_customer.
@@ -225,11 +317,11 @@ CLASS zcl_mapping_shopify_to_sap IMPLEMENTATION.
     LOOP AT is_shopify_order-line_items INTO DATA(ls_line_item).
       APPEND VALUE #(
         sales_order_item            = |{ lv_item_no }|
-        product                      = ls_line_item-sku                  " sku -> Material
+        product                      = ls_line_item-sku
         sales_order_item_text        = ls_line_item-title
         requested_quantity           = |{ ls_line_item-quantity }|
         requested_quantity_sapunit   = gc_uom_ea
-        plant             = is_shopify_order-location_id
+        plant                        = is_shopify_order-location_id
         transaction_currency         = is_shopify_order-currency
       ) TO rt_sap_items.
       lv_item_no = lv_item_no + 10.
@@ -293,7 +385,7 @@ CLASS zcl_mapping_shopify_to_sap IMPLEMENTATION.
       city_name                    = is_address-city
       postal_code                   = is_address-zip
       country                       = is_address-country_code
-*      language                      = iv_locale                          " FIX: bật lại
+*      language                      = iv_locale
       email_address                  = iv_email
       phone_number                   = is_address-phone
     ).
@@ -357,23 +449,6 @@ CLASS zcl_mapping_shopify_to_sap IMPLEMENTATION.
       ENDLOOP.
       lv_item_no = lv_item_no + 10.
     ENDLOOP.
-  ENDMETHOD.
-
-
-  METHOD map_full_order.
-    DATA ls_shopify_order TYPE ts_shopify_order.
-
-    /ui2/cl_json=>deserialize(
-      EXPORTING json = iv_shopify_json
-      CHANGING  data = ls_shopify_order
-    ).
-
-    es_so_header   = map_so_header(   ls_shopify_order ).
-    et_so_items    = map_so_items(    ls_shopify_order ).
-    et_so_partners = map_so_partners( ls_shopify_order ).
-    et_so_pricing  = map_so_pricing(  ls_shopify_order ).
-    et_so_text     = map_so_text(     ls_shopify_order ).
-    et_tax_recon   = get_tax_reconciliation( ls_shopify_order ).
   ENDMETHOD.
 
 

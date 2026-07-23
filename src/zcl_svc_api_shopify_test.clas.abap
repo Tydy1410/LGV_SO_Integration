@@ -168,7 +168,6 @@ CLASS zcl_svc_api_shopify_test IMPLEMENTATION.
           RETURN.
         ENDIF.
 
-        " TODO: xử lý nghiệp vụ - tạo/cập nhật material trong SAP
 
         set_response_payload(
           io_response = response
