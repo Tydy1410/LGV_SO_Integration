@@ -1352,6 +1352,8 @@ CLASS zscm_so_integration DEFINITION
         var_confign_quantity_unit  TYPE c LENGTH 3,
         "! VarConfignQuantityISOUnit
         var_confign_quantity_isoun TYPE c LENGTH 3,
+        "! odata.etag
+        etag                       TYPE string,
       END OF tys_variant_configuration_inst,
       "! <p class="shorttext synchronized">List of VariantConfigurationInstance_Type</p>
       tyt_variant_configuration_inst TYPE STANDARD TABLE OF tys_variant_configuration_inst WITH DEFAULT KEY.
@@ -1369,6 +1371,8 @@ CLASS zscm_so_integration DEFINITION
         var_confign_status         TYPE c LENGTH 1,
         "! LastChangeDateTime
         last_change_date_time      TYPE timestampl,
+        "! odata.etag
+        etag                       TYPE string,
       END OF tys_variant_configuration_type,
       "! <p class="shorttext synchronized">List of VariantConfiguration_Type</p>
       tyt_variant_configuration_type TYPE STANDARD TABLE OF tys_variant_configuration_type WITH DEFAULT KEY.
@@ -1420,6 +1424,8 @@ CLASS zscm_so_integration DEFINITION
         var_cnf_charc_currency     TYPE c LENGTH 3,
         "! VarConfignValueAssignmentType
         var_confign_value_assignme TYPE int4,
+        "! odata.etag
+        etag                       TYPE string,
       END OF tys_var_confign_assigned_value,
       "! <p class="shorttext synchronized">List of VarConfignAssignedValue_Type</p>
       tyt_var_confign_assigned_value TYPE STANDARD TABLE OF tys_var_confign_assigned_value WITH DEFAULT KEY.
@@ -1457,6 +1463,8 @@ CLASS zscm_so_integration DEFINITION
         additional_value_is_allowe TYPE abap_bool,
         "! MultipleValuesAreAllowed
         multiple_values_are_allowe TYPE abap_bool,
+        "! odata.etag
+        etag                       TYPE string,
       END OF tys_var_confign_characteristic,
       "! <p class="shorttext synchronized">List of VarConfignCharacteristic_Type</p>
       tyt_var_confign_characteristic TYPE STANDARD TABLE OF tys_var_confign_characteristic WITH DEFAULT KEY.
@@ -4900,6 +4908,12 @@ CLASS ZSCM_SO_INTEGRATION IMPLEMENTATION.
     lo_primitive_property->set_is_nullable( ).
     lo_primitive_property->create_vcs_value_control( ).
 
+    lo_primitive_property = lo_entity_type->get_primitive_property( 'ETAG' ).
+    lo_primitive_property->set_edm_name( 'ETAG' ) ##NO_TEXT.
+    lo_primitive_property->set_edm_type( 'String' ) ##NO_TEXT.
+    lo_primitive_property->use_as_etag( ).
+    lo_primitive_property->set_is_technical( ).
+
     lo_navigation_property = lo_entity_type->create_navigation_property( 'CHARACTERISTIC' ).
     lo_navigation_property->set_edm_name( '_Characteristic' ) ##NO_TEXT.
     lo_navigation_property->set_target_entity_type_name( 'VAR_CONFIGN_CHARACTERISTIC' ).
@@ -4959,6 +4973,12 @@ CLASS ZSCM_SO_INTEGRATION IMPLEMENTATION.
     lo_primitive_property->set_precision( 7 ) ##NUMBER_OK.
     lo_primitive_property->set_is_nullable( ).
     lo_primitive_property->create_vcs_value_control( ).
+
+    lo_primitive_property = lo_entity_type->get_primitive_property( 'ETAG' ).
+    lo_primitive_property->set_edm_name( 'ETAG' ) ##NO_TEXT.
+    lo_primitive_property->set_edm_type( 'String' ) ##NO_TEXT.
+    lo_primitive_property->use_as_etag( ).
+    lo_primitive_property->set_is_technical( ).
 
     lo_navigation_property = lo_entity_type->create_navigation_property( 'INSTANCE' ).
     lo_navigation_property->set_edm_name( '_Instance' ) ##NO_TEXT.
@@ -5133,6 +5153,12 @@ CLASS ZSCM_SO_INTEGRATION IMPLEMENTATION.
     lo_primitive_property->set_edm_name( 'VarConfignValueAssignmentType' ) ##NO_TEXT.
     lo_primitive_property->set_edm_type( 'Int32' ) ##NO_TEXT.
 
+    lo_primitive_property = lo_entity_type->get_primitive_property( 'ETAG' ).
+    lo_primitive_property->set_edm_name( 'ETAG' ) ##NO_TEXT.
+    lo_primitive_property->set_edm_type( 'String' ) ##NO_TEXT.
+    lo_primitive_property->use_as_etag( ).
+    lo_primitive_property->set_is_technical( ).
+
     lo_navigation_property = lo_entity_type->create_navigation_property( 'CHARACTERISTIC_2' ).
     lo_navigation_property->set_edm_name( '_Characteristic' ) ##NO_TEXT.
     lo_navigation_property->set_target_entity_type_name( 'VAR_CONFIGN_CHARACTERISTIC' ).
@@ -5241,6 +5267,12 @@ CLASS ZSCM_SO_INTEGRATION IMPLEMENTATION.
     lo_primitive_property = lo_entity_type->get_primitive_property( 'MULTIPLE_VALUES_ARE_ALLOWE' ).
     lo_primitive_property->set_edm_name( 'MultipleValuesAreAllowed' ) ##NO_TEXT.
     lo_primitive_property->set_edm_type( 'Boolean' ) ##NO_TEXT.
+
+    lo_primitive_property = lo_entity_type->get_primitive_property( 'ETAG' ).
+    lo_primitive_property->set_edm_name( 'ETAG' ) ##NO_TEXT.
+    lo_primitive_property->set_edm_type( 'String' ) ##NO_TEXT.
+    lo_primitive_property->use_as_etag( ).
+    lo_primitive_property->set_is_technical( ).
 
     lo_navigation_property = lo_entity_type->create_navigation_property( 'ASSIGNED_VALUE' ).
     lo_navigation_property->set_edm_name( '_AssignedValue' ) ##NO_TEXT.

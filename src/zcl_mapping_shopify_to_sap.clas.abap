@@ -135,11 +135,11 @@ CLASS zcl_mapping_shopify_to_sap DEFINITION
   PRIVATE SECTION.
 
     CONSTANTS:
-      gc_one_time_customer  TYPE string VALUE '0000100000',
+      gc_one_time_customer  TYPE string VALUE '0001000030',
       gc_sd_document_reason TYPE string VALUE '',
       gc_shpcond_with_fee   TYPE string VALUE '01',
       gc_shpcond_no_fee     TYPE string VALUE '02',
-      gc_condition_pr00     TYPE string VALUE 'PR00',
+      gc_condition_pr00     TYPE string VALUE 'PPR0',
       gc_condition_ybhd     TYPE string VALUE 'YBHD',
       gc_uom_ea             TYPE string VALUE 'EA',
       " TODO: xác nhận Language key thật SAP dùng cho note (FS chưa chốt)
@@ -275,11 +275,11 @@ CLASS zcl_mapping_shopify_to_sap IMPLEMENTATION.
 
   METHOD map_so_header.
     rs_sap_so = VALUE #(
-      sales_order_type_2        = 'OR'
+      sales_order_type_2        = 'TA'
       sold_to_party              = determine_sold_to_party( is_shopify_order )
-      sales_organization          = '1000'
-      distribution_channel        = '50'
-      organization_division       = '20'
+      sales_organization          = '6710'
+      distribution_channel        = '10'
+      organization_division       = '00'
       purchase_order_by_customer  = |{ is_shopify_order-order_number }|
       requested_delivery_date     = convert_date( is_shopify_order-created_at )
       transaction_currency        = is_shopify_order-currency
@@ -295,6 +295,7 @@ CLASS zcl_mapping_shopify_to_sap IMPLEMENTATION.
   METHOD map_so_text.
     IF is_shopify_order-note IS NOT INITIAL.
       APPEND VALUE #(
+        long_text_id = 'TX01'
         language  = gc_note_language
         long_text = is_shopify_order-note
       ) TO rt_sap_text.
@@ -306,7 +307,7 @@ CLASS zcl_mapping_shopify_to_sap IMPLEMENTATION.
     IF is_shopify_order-customer-id IS NOT INITIAL.
       rv_bp = is_shopify_order-customer-id.
     ELSE.
-      rv_bp = gc_one_time_customer.
+*      rv_bp = gc_one_time_customer.
     ENDIF.
   ENDMETHOD.
 
@@ -316,12 +317,12 @@ CLASS zcl_mapping_shopify_to_sap IMPLEMENTATION.
 
     LOOP AT is_shopify_order-line_items INTO DATA(ls_line_item).
       APPEND VALUE #(
-        sales_order_item            = |{ lv_item_no }|
+*        sales_order_item            = |{ lv_item_no }|
         product                      = ls_line_item-sku
         sales_order_item_text        = ls_line_item-title
         requested_quantity           = |{ ls_line_item-quantity }|
         requested_quantity_sapunit   = gc_uom_ea
-        plant                        = is_shopify_order-location_id
+*        plant                        = is_shopify_order-location_id
         transaction_currency         = is_shopify_order-currency
       ) TO rt_sap_items.
       lv_item_no = lv_item_no + 10.
@@ -333,7 +334,8 @@ CLASS zcl_mapping_shopify_to_sap IMPLEMENTATION.
 
     IF is_shopify_order-shipping_address IS NOT INITIAL.
       APPEND build_address_partner(
-        iv_partner_function = 'SP'
+        iv_partner_function = 'AG'
+*        iv_customer_bp       = is_shopify_order-customer-id
         is_address           = is_shopify_order-shipping_address
         iv_email              = is_shopify_order-email
         iv_locale             = is_shopify_order-customer_locale
@@ -376,7 +378,9 @@ CLASS zcl_mapping_shopify_to_sap IMPLEMENTATION.
     rs_partner = VALUE #(
       partner_function          = iv_partner_function
       customer                   = iv_customer_bp
-      business_partner_name_1   = is_address-name
+      business_partner_name_1   = COND #( WHEN is_address-name IS NOT INITIAL
+                                          THEN is_address-name
+                                          ELSE |{ is_address-first_name } { is_address-last_name }| )
       business_partner_name_2   = is_address-first_name
       business_partner_name_3   = is_address-last_name
       street_name                 = lv_street
@@ -387,7 +391,10 @@ CLASS zcl_mapping_shopify_to_sap IMPLEMENTATION.
       country                       = is_address-country_code
 *      language                      = iv_locale
       email_address                  = iv_email
-      phone_number                   = is_address-phone
+     phone_number = COND #( WHEN is_address-phone(3) = '+84'
+                       THEN |0{ substring( val = is_address-phone off = 3 ) }|
+                       ELSE is_address-phone )
+      correspondence_language       = 'EN'
     ).
   ENDMETHOD.
 

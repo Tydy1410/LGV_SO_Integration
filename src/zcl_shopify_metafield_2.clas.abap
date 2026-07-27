@@ -8,7 +8,7 @@ CLASS zcl_shopify_metafield_2 DEFINITION
 
     METHODS update_metafield
       IMPORTING
-        iv_product_id TYPE string
+        iv_product_id TYPE string          " số thuần, vd '8498507874474'
         iv_value      TYPE string
         iv_namespace  TYPE string DEFAULT 'custom'
         iv_key        TYPE string DEFAULT 'sap_test'
@@ -23,6 +23,7 @@ CLASS zcl_shopify_metafield_2 DEFINITION
     CONSTANTS:
       gc_url   TYPE string
         VALUE 'https://lgvs-pp4uuuho.myshopify.com/admin/api/2026-07/graphql.json',
+      " TODO: đưa token ra Z table config, không để hard-code khi lên PROD
       gc_token TYPE string VALUE 'shpua_6c39a0f1adc23aa1826eed3bd18cf0f4'.
 
     TYPES:
@@ -72,6 +73,7 @@ CLASS zcl_shopify_metafield_2 IMPLEMENTATION.
   METHOD update_metafield.
 
     TRY.
+        " Tạo destination trực tiếp từ URL - không cần Communication Arrangement
         DATA(lo_destination) = cl_http_destination_provider=>create_by_url( gc_url ).
 
         DATA(lo_client) = cl_web_http_client_manager=>create_by_http_destination( lo_destination ).
@@ -101,6 +103,7 @@ CLASS zcl_shopify_metafield_2 IMPLEMENTATION.
           RETURN.
         ENDIF.
 
+        " GraphQL luôn trả 200 kể cả khi lỗi nghiệp vụ -> phải đọc userErrors
         DATA(lv_err) = extract_user_errors( ev_response ).
 
         IF lv_err IS NOT INITIAL.
